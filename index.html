@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>เกม-ส่งด่วน ภาษาไทย(คำที่มาจากภาษาต่างประเทศ)</title>
+<title>เกม-ส่งด่วน ราชาศัพท์</title>
 <style>
 /* ===== ฟอนต์รวมหน้า (คงเดิม) ===== */
 @font-face{
@@ -437,7 +437,7 @@ body:not(.in-game) .zone .ansbtn{
   position: relative;     /* ✅ ให้อยู่เหนือรูป */
   z-index: 2;             /* ✅ ข้อความทับรูปได้ */
 
-  font-size: clamp(24px, 3.5vw, 40px);
+  font-size: clamp(30px, 4.5vw, 56px);
   font-weight: 1000;
   line-height: 1.1;
   white-space: normal;
@@ -675,9 +675,9 @@ body:not(.in-game) .zone .ansbtn{
 <div id="landing" role="dialog" aria-modal="true" class="hide">
   <div class="brand"><img src="image/banner2.png" alt="Banner"></div>
   <div class="level-menu">
-    <button class="levelBtn" data-level="1">คำที่มาจากภาษาอังกฤษ</button>
-    <button class="levelBtn" data-level="2">คำที่มาจากภาษาจีน</button>
-    <button class="levelBtn" data-level="3">คำที่มาจากภาษาบาลี-สันสกฤต</button>
+    <button class="levelBtn" data-level="1">คำราชาศัพท์ : หมวดร่างกาย</button>
+    <button class="levelBtn" data-level="2">คำราชาศัพท์ : หมวดเครือญาติ</button>
+    <button class="levelBtn" data-level="3">คำราชาศัพท์ : สิ่งของ เครื่องใช้</button>
     <button class="levelBtn" id="guideBtn">กติกาการเล่น 📖</button>
   </div>
 </div>
@@ -1061,83 +1061,517 @@ function showNextButton(show){
 }
 
 
-/* ---------- ธนาคารคำ (เพิ่ม/แก้ได้ตลอด) ---------- */
-/* ด่าน 1 (พื้นฐาน) */
-const BANK_L1_TRUE = [
-"พ่อ", "แม่", "พี่", "น้อง", "ปู่", "ย่า", "ตา", "ยาย", "บ้าน", "เมือง", "น้ำ", "ไฟ", "ดิน", "ฟ้า", "ดวง", "ตะวัน", "มะพร้าว", "ต้นไม้", "ใบไม้", "ลูก", "หิว", "อิ่ม", "ยิ้ม", "หัวเราะ", "ดี", "ชั่ว", "มะยม", "ไกล", "มาก", "น้อย", "ยืน", "นั่ง", "นอน", "กิน", "ดิน", "วิ่ง", "พูด", "ฟัง", "ดู", "เห็น", "หก", "เจ็ด", "แปด", "เก้า", "สิบ", "ฉัน", "ท่าน", "เรา", "เขา", "ผู้ใหญ่", "ใหม่", "สะใภ้", "หัวใจ", "ใคร", "ใคร่", "หลงใหล", "น้ำใส", "ใต้", "เรือใบ", "มะม่วง", "สะดือ", "สะเดา", "นกกระจอก", "ลูกกระเดือก", "กระทำ", "กระโจน", "กระบวย", "กะลา", "กระทะ", "กระจับ", "ครก", "สาก", "ไห", "กำไล", "กระจก", "มะขาม", "มะปราง", "ฟักทอง", "แตงโม", "แตงกวา", "มะกรูด", "มะนาว", "ส้มโอ", "กระปุก", "ตะขบ", "ตะเคียน", "ตะไคร้", "ตะปู", "ตะเข็บ", "สะเอว", "นกกระจิบ", "นกกระจาบ", "ประท้วง", "ประหนึ่ง", "ประเดี๋ยว", "ไพเราะ", "เหล้า",
-];
+/* ---------- ธนาคารคำแบบใหม่ (คำถาม + ตัวเลือกต่อข้อ) ---------- */
 
-const BANK_L1_FALSE = [
-"คอมพิวเตอร์", "อินเทอร์เน็ต", "กราฟ", "แท็กซี่", "มอเตอร์ไซค์", "ฟรี", "เกม", "ฟุตบอล", "การ์ด", "กอล์ฟ", "แอร์", "ลิฟต์", "ไกด์", "คลินิก", "ออฟฟิศ", "ค็อกเทล", "ไอเดีย", "เครดิต", "โบนัส", "เซลล์", "ช็อกโกแลต", "เค้ก", "คุกกี้", "กาแฟ", "ชีส", "สเต๊ก", "เบอร์เกอร์", "แยม", "แคลเซียม", "โควตา", "แฟชั่น", "ทาวน์เฮาส์", 
-"ไซเบอร์", "ดาวน์โหลด", "ไดโนเสาร์", "เบรก", "เทคโนโลยี", "เทนนิส", "เทอม", "บอร์ด", "วิตามิน", "แบคทีเรีย", "ฮอร์โมน", "ไวรัส", "ฟิสิกส์", "บาร์โคด", "แบตเตอร์รี่", "ปิงปอง", "เปอร์เซ็นต์", "เปียโน",  "พลาสติก", "พิซซา", "ฟุตพาท", "ไมโครเวฟ", "ไมโครโฟน", "ยีราฟ", "รีไซเคิล", "เลเซอร์", "วัคซีน", "เว็บไซต์", "สปาเกตตี", "เสิร์ฟ", "แสตมป์", "แอลกอฮอล์", "ไวไฟ", "ออนไลน์", "อะลูมิเนียม", "ยุโรป", "มะกะโรนี", "โดนัต", "ลิงก์", "สตรอว์เบอร์รี", "เบียร์", "ฟิสิกส์", "ฟิตเนส", "แซนด์วิช", "คอนเสิร์ต", "ทีวี", "แคร์รอต",
-];
+// โครงสร้างหนึ่งข้อ:
+// {
+//   question: 'ข้อความคำถาม',
+//   leftText: 'ข้อความตัวเลือกฝั่งซ้าย',
+//   rightText:'ข้อความตัวเลือกฝั่งขวา',
+//   correct: 'left' หรือ 'right'
+// }
 
-/* ด่าน 2 (ชุดที่ 2) */
-const BANK_L2_TRUE = [
-"หัว", "ตัว", "มือ", "เท้า", "ปาก", "ฟัน", "หัวใจ", "หัวไหล่", "เล็บ", "เหงื่อ", "ดิน", "หิน", "ทราย", "ภูเขา", "แม่น้ำ", "คลื่น", "ป่า", "หนอง", "บึง", "ทุ่ง", "ปลูก", "ตัด", "ขุดเจาะ", "หัวเข่า", "ผูก", "แก้ไข", "หัวเข่า", "กระดูก", "ทอผ้า", "แกะ", "ร้องไห้", "กระโดด", "ความรัก", "ตราชั่ง", "ความกลัว", "ความกล้า", "เขิน", "อาย", "เมา", "ตื่น", "กระชัง", "กระเช้า", "กระโดด", "น้ำค้างแข็ง", "เครือข่าย", "ฝนกรด", "ตลาดมืด", "พัดลม", "ไฟฟ้า","สะเดา", "นกกระจอก", "ลูกกระเดือก",
-"กระทำ", "กระโจน", "กระบวย", "กะลา", "กระทะ", "กระจับ", "ครก", "สาก", "ไห", "กำไล", "กระจก", "มะขาม", "มะปราง", "ฟักทอง", "แตงโม", "แตงกวา", "มะกรูด", "มะนาว", "ส้มโอ", "กระปุก", "ตะขบ", "ตะเคียน", "ตะไคร้", "ตะปู", "ตะเข็บ", "สะเอว", "นกกระจิบ", "นกกระจาบ", "ประท้วง", "ประหนึ่ง", "ประเดี๋ยว", "ไพเราะ", "เหล้า",
-"กระโหลก", "กระแทก", "กระทบ", "ลำไส้", "กล้ามเนื้อ", "สมอง", "สายตา", "แม่น้ำ", "กิ้งก่า", "กิ้งกือ", "จิ้งจก", "ตุ๊กแก", "จิ้งหรีด", "ดอกไม้", "บ้านเรือน", 
-];
+const QUESTIONS_LEVEL = {
+  1: [
+  {
+    question: 'พระเกศา',
+    leftText: 'ผม',
+    rightText: 'หู',
+    correct: 'left'
+  },
+  {
+    question: 'พระนลาฏ',
+    leftText: 'คาง',
+    rightText: 'หน้าผาก',
+    correct: 'right'
+  },
+  {
+    question: 'พระขนง',
+    leftText: 'คิ้ว',
+    rightText: 'แก้ม',
+    correct: 'left'
+  },
+  {
+    question: 'พระเนตร',
+    leftText: 'จมูก',
+    rightText: 'ตา',
+    correct: 'right'
+  },
+  {
+    question: 'พระกรรณ',
+    leftText: 'หู',
+    rightText: 'ลิ้น',
+    correct: 'left'
+  },
+  {
+    question: 'พระนาสิก',
+    leftText: 'ท้อง',
+    rightText: 'จมูก',
+    correct: 'right'
+  },
+  {
+    question: 'พระโอษฐ์',
+    leftText: 'คอ',
+    rightText: 'ปาก / ริมฝีปาก',
+    correct: 'right'
+  },
+  {
+    question: 'พระทนต์',
+    leftText: 'ฟัน',
+    rightText: 'เล็บ',
+    correct: 'left'
+  },
+  {
+    question: 'พระชิวหา',
+    leftText: 'นิ้วมือ',
+    rightText: 'ลิ้น',
+    correct: 'right'
+  },
+  {
+    question: 'พระปราง',
+    leftText: 'แก้ม',
+    rightText: 'หน้าผาก',
+    correct: 'left'
+  },
+  {
+    question: 'พระพักตร์',
+    leftText: 'ใบหน้า',
+    rightText: 'ไหล่',
+    correct: 'left'
+  },
+  {
+    question: 'พระศอ',
+    leftText: 'คาง',
+    rightText: 'คอ',
+    correct: 'right'
+  },
+  {
+    question: 'พระอังสา',
+    leftText: 'ไหล่',
+    rightText: 'สะโพก',
+    correct: 'left'
+  },
+  {
+    question: 'พระพาหา',
+    leftText: 'แขน',
+    rightText: 'ขา',
+    correct: 'left'
+  },
+  {
+    question: 'พระหัตถ์',
+    leftText: 'เท้า',
+    rightText: 'มือ',
+    correct: 'right'
+  },
+  {
+    question: 'พระอังคุลี',
+    leftText: 'นิ้วมือ',
+    rightText: 'เข่า',
+    correct: 'left'
+  },
+  {
+    question: 'พระนขา',
+    leftText: 'ฟัน',
+    rightText: 'เล็บ',
+    correct: 'right'
+  },
+  {
+    question: 'พระอุทร',
+    leftText: 'ท้อง',
+    rightText: 'หลัง',
+    correct: 'left'
+  },
+  {
+    question: 'พระกฤษฎี',
+    leftText: 'เอว',
+    rightText: 'ต้นคอ',
+    correct: 'left'
+  },
+  {
+    question: 'พระชงฆ์',
+    leftText: 'แขน',
+    rightText: 'ขา',
+    correct: 'right'
+  },
+  {
+    question: 'พระชานุ',
+    leftText: 'ข้อศอก',
+    rightText: 'เข่า',
+    correct: 'right'
+  },
+  {
+    question: 'พระบาท',
+    leftText: 'เท้า',
+    rightText: 'คิ้ว',
+    correct: 'left'
+  },
+  {
+    question: 'พระโลมา',
+    leftText: 'ขนตามร่างกาย',
+    rightText: 'เหงื่อ',
+    correct: 'left'
+  },
+  {
+    question: 'พระโลหิต',
+    leftText: 'เลือด',
+    rightText: 'น้ำลาย',
+    correct: 'left'
+  },
+  ],
 
-const BANK_L2_FALSE = [
-"ก๋วยเตี๋ยว", "โจ๊ก", "พะโล้", "ซาลาเปา", "เกี๊ยว", "เต้าหู้", "บะหมี่", "เฉาก๊วย", "กุยช่าย", "โอเลี้ยง", "กวยจั๊บ ", "เกาเหลา", "เก้าอี้", "เกี๊ยว", "เจ๊", "ตี๋", "จับฉ่าย", "ซินแส", "ตั๋ว", "จับกัง", "โต๊ะ", "เจ๊ง", "ตะหลิว", "ซีอิ๊ว", "อั้งโล่", "เก๋ง", "เซียมซี", "เต๋า", "เต้าเจี้ยว", "ฮวงซุ้ย", "ไต้ฝุ่น", "เฮง", "หุ้น", "ยี่ห้อ", "เซ้ง", "บ๊วย", "ตุ๋น", "บ๊ะจ่าง", "ซวย", "เปาะเปี๊ยะ", "เฮี้ยน", "เก๊", "ลิ้นจี่", "ห้าง",  "แปะก๊วย",
-];
+  2: [
+  {
+    question: 'พระอัยกา',
+    leftText: 'ปู่/ตา',
+    rightText: 'ปู่ทวด/ตาทวด',
+    correct: 'left'
+  },
+  {
+    question: 'พระอัยยิกา',
+    leftText: 'ย่า/ยาย',
+    rightText: 'ย่าทวด/ยายทวด',
+    correct: 'left'
+  },
+  {
+    question: 'พระปัยกา',
+    leftText: 'ปู่ทวด/ตาทวด',
+    rightText: 'ปู่ตา',
+    correct: 'left'
+  },
+  {
+    question: 'พระปัยยิกา',
+    leftText: 'ย่าทวด/ยายทวด',
+    rightText: 'ย่า/ยาย',
+    correct: 'left'
+  },
+  {
+    question: 'พระชนก',
+    leftText: 'พ่อ',
+    rightText: 'แม่',
+    correct: 'left'
+  },
+  {
+    question: 'พระราชบิดา',
+    leftText: 'พ่อ',
+    rightText: 'แม่',
+    correct: 'left'
+  },
+  {
+    question: 'พระราชมารดา',
+    leftText: 'แม่',
+    rightText: 'พ่อ',
+    correct: 'left'
+  },
+  {
+    question: 'พระชนนี',
+    leftText: 'แม่',
+    rightText: 'พ่อ',
+    correct: 'left'
+  },
+  {
+    question: 'พระสสุระ',
+    leftText: 'พ่อสามี',
+    rightText: 'พ่อภรรยา',
+    correct: 'left'
+  },
+  {
+    question: 'พระสัสสุ',
+    leftText: 'แม่สามี',
+    rightText: 'แม่ภรรยา',
+    correct: 'left'
+  },
+  {
+    question: 'พระปิตุลา/พระปิตุจฉา',
+    leftText: 'ลุง',
+    rightText: 'น้องชาย',
+    correct: 'left'
+  },
+  {
+    question: 'พระมาตุลา/พระมาตุจฉา',
+    leftText: 'ลุง',
+    rightText: 'ปู่',
+    correct: 'left'
+  },
+  {
+    question: 'พระสวามี',
+    leftText: 'สามี',
+    rightText: 'ภรรยา',
+    correct: 'left'
+  },
+  {
+    question: 'พระชายา',
+    leftText: 'ภรรยา',
+    rightText: 'สามี',
+    correct: 'left'
+  },
+  {
+    question: 'พระมเหสี',
+    leftText: 'ภรรยา',
+    rightText: 'สามี',
+    correct: 'left'
+  },
+  {
+    question: 'พระราชโอรส',
+    leftText: 'ลูกชาย',
+    rightText: 'ลูกสาว',
+    correct: 'left'
+  },
+  {
+    question: 'พระราชธิดา',
+    leftText: 'ลูกสาว',
+    rightText: 'ลูกชาย',
+    correct: 'left'
+  },
+  {
+    question: 'พระเจ้าลูกเธอ',
+    leftText: 'ลูกสาว',
+    rightText: 'น้อง',
+    correct: 'left'
+  },
+  {
+    question: 'พระชามาดา',
+    leftText: 'ลูกเขย',
+    rightText: 'ลูกสะใภ้',
+    correct: 'left'
+  },
+  {
+    question: 'พระสุณิสา',
+    leftText: 'ลูกสะใภ้',
+    rightText: 'ลูกเขย',
+    correct: 'left'
+  },
+  {
+    question: 'พระราชนัดดา',
+    leftText: 'หลาน',
+    rightText: 'ลูก',
+    correct: 'left'
+  },
+  {
+    question: 'พระราชปนัดดา',
+    leftText: 'เหลน',
+    rightText: 'หลาน',
+    correct: 'left'
+  }
+  ],
 
-/* ด่าน 3 (ท้าทาย) */
-const BANK_L3_TRUE = [
-"กระทำ", "กระโจน", "กระบวย", "กะลา", "กระทะ", "กระจับ", "ครก", "สาก", "ไห", "กำไล", "กระจก", "มะขาม", "มะปราง", "ฟักทอง", "แตงโม", "แตงกวา", "มะกรูด", "มะนาว", "ส้มโอ", "กระปุก", "ตะขบ", "ตะเคียน", "ตะไคร้", "ตะปู", "ตะเข็บ", "สะเอว", "นกกระจิบ", "นกกระจาบ", "ประท้วง", "ประหนึ่ง", "ประเดี๋ยว", "ไพเราะ", "เหล้า",
-"กระโหลก", "กระแทก", "กระทบ", "ลำไส้", "กล้ามเนื้อ", "สมอง", "สายตา", "แม่น้ำ", "กิ้งก่า", "กิ้งกือ", "จิ้งจก", "ตุ๊กแก", "จิ้งหรีด", "ดอกไม้",
-"หลัง", "เบิกบาน", "ห้อง", "ด้าม", "กระเด็น", "กระดอน", "เม็ด", "หมู", "หมา", "แมว", "ช้าง", "ม้า", "ค่ำ", "วัว", "เดือน", "ควาย", "ประตู", "ประเดี๋ยว", "บอกใบ้", "สั่งสอน", "หนองน้ำ", "ลำไย", "มังคุด", "น้อย", "ดินปืน", "ดินเหนียว", "ก้อนหิน",  "ผู้ใหญ่", "ใหม่", "สะใภ้", "หัวใจ", "ใคร", "ใคร่", "หลงใหล", "น้ำใส", 
-"ใต้", "เรือใบ", "มะม่วง", "สะดือ", "สะเดา", "นกกระจอก", "ลูกกระเดือก", "กระทำ", "กระโจน", "กระบวย", "กะลา", "กระทะ", "กระจับ", "ครก", "สาก", "ไห", "กำไล", "กระจก", "มะขาม", "มะปราง", "ฟักทอง", "แตงโม", "แตงกวา", "มะกรูด", "มะนาว", "ส้มโอ", "กระปุก", "ตะขบ", "ตะเคียน", "ตะไคร้", "ตะปู", "ตะเข็บ", "สะเอว",
-];
+  3: [
+  {
+    question: 'พระวิสูตร / พระสูตร',
+    leftText: 'ม่าน/มุ้ง',
+    rightText: 'ผ้าเช็ดตัว',
+    correct: 'left'
+  },
+  {
+    question: 'พระเขนย',
+    leftText: 'หมอน',
+    rightText: 'ผ้าห่ม',
+    correct: 'left'
+  },
+  {
+    question: 'พระแท่นบรรทม',
+    leftText: 'เตียงนอน',
+    rightText: 'เสื่อปูนอน',
+    correct: 'left'
+  },
+  {
+    question: 'พระที่',
+    leftText: 'เตียงนอน',
+    rightText: 'เก้าอี้',
+    correct: 'left'
+  },
+  {
+    question: 'พระยี่ภู่',
+    leftText: 'ที่นอน/ฟูก',
+    rightText: 'หมอน',
+    correct: 'left'
+  },
+  {
+    question: 'พระราชบรรจถรณ์',
+    leftText: 'ที่นอน/ฟูก',
+    rightText: 'ผ้าห่ม',
+    correct: 'left'
+  },
+  {
+    question: 'พระอู่',
+    leftText: 'เปล',
+    rightText: 'เตียงเด็ก',
+    correct: 'left'
+  },
+  {
+    question: 'พระทวาร',
+    leftText: 'ประตู',
+    rightText: 'หน้าต่าง',
+    correct: 'left'
+  },
+  {
+    question: 'พระฉาย',
+    leftText: 'กระจกส่อง',
+    rightText: 'ไฟฉาย',
+    correct: 'left'
+  },
+  {
+    question: 'พระสาง',
+    leftText: 'หวี',
+    rightText: 'แปรงสีฟัน',
+    correct: 'left'
+  },
+  {
+    question: 'พระแสงกรรบิด',
+    leftText: 'มีดโกน',
+    rightText: 'มีดทำครัว',
+    correct: 'left'
+  },
+  {
+    question: 'ฉลองพระองค์',
+    leftText: 'เสื้อ',
+    rightText: 'กางเกง',
+    correct: 'left'
+  },
+  {
+    question: 'พระสนับเพลา',
+    leftText: 'กางเกง',
+    rightText: 'สนับเข่า',
+    correct: 'left'
+  },
+  {
+    question: 'ฉลองพระบาท',
+    leftText: 'รองเท้า',
+    rightText: 'ถุงเท้า',
+    correct: 'left'
+  },
+  {
+    question: 'รัดพระองค์',
+    leftText: 'เข็มขัด',
+    rightText: 'นาฬิกา',
+    correct: 'left'
+  },
+  {
+    question: 'พระปั้นเหน่ง',
+    leftText: 'เข็มขัด',
+    rightText: 'ต่างหู',
+    correct: 'left'
+  },
+  {
+    question: 'ซับพระองค์',
+    leftText: 'ผ้าเช็ดตัว',
+    rightText: 'ผ้าเช็ดหน้า',
+    correct: 'left'
+  },
+  {
+    question: 'ผ้าพันพระศอ',
+    leftText: 'ผ้าพันคอ',
+    rightText: 'ผ้าคลุมไหล่',
+    correct: 'left'
+  },
+  {
+    question: 'พระมาลา',
+    leftText: 'หมวก',
+    rightText: 'สร้อยคอ',
+    correct: 'left'
+  },
+  {
+    question: 'ธารพระกร',
+    leftText: 'ไม้เท้า',
+    rightText: 'ดาบ',
+    correct: 'left'
+  },
+  {
+    question: 'พระสุธารส',
+    leftText: 'น้ำดื่ม',
+    rightText: 'ยารักษาโรค',
+    correct: 'left'
+  },
+  {
+    question: 'พระกระยาเสวย',
+    leftText: 'ข้าว/อาหาร',
+    rightText: 'ยารักษาโรค',
+    correct: 'left'
+  },
+  {
+    question: 'พระกระยาหาร',
+    leftText: 'อาหารคาวหวาน',
+    rightText: 'ยารักษาโรค',
+    correct: 'left'
+  },
+  {
+    question: 'น้ำจัณฑ์',
+    leftText: 'เหล้า',
+    rightText: 'น้ำผลไม้',
+    correct: 'left'
+  },
+  {
+    question: 'พระสุวรรณภิงคาร',
+    leftText: 'คนโทน้ำ',
+    rightText: 'เหยือกใส่น้ำแข็ง',
+    correct: 'left'
+  },
+  {
+    question: 'ฉลองพระหัตถ์ช้อน',
+    leftText: 'ช้อน',
+    rightText: 'ตะหลิว',
+    correct: 'left'
+  },
+  {
+    question: 'ฉลองพระหัตถ์ส้อม',
+    leftText: 'ส้อม',
+    rightText: 'ตะเกียบ',
+    correct: 'left'
+  },
+  {
+    question: 'ฉลองพระหัตถ์ตะเกียบ',
+    leftText: 'ตะเกียบ',
+    rightText: 'ส้อม',
+    correct: 'left'
+  },
+  {
+    question: 'เครื่องพระสำอาง',
+    leftText: 'เครื่องสำอาง',
+    rightText: 'สบู่',
+    correct: 'left'
+  },
+  {
+    question: 'พระแสงปืน',
+    leftText: 'ปืน',
+    rightText: 'ดาบ',
+    correct: 'left'
+  }
+  ]
+};
 
-const BANK_L3_FALSE = [
-"กรรม", "ธรรม", "ภรรยา", "มัธยม", "ปัญญา", "อัคคี", "กตัญญู", "บรรพต", "ขัตติยะ", "อัศจรรย์", "ศาสนา", "บุญ", "บาป", "โอกาส", "ศึกษา", "อาจารย์", "มรรค", "ผล", "นิพพาน", "กิเลส", "กษัตริย์", "ฤกษ์", "ฤดู", "แพทย์", "เศรษฐกิจ", "อวกาศ", "ศีรษะ", "อุทยาน", "วิทยา", "ภาษา", "ประธาน", "ธุระ", "กิจ", "ราษฎร", "มิตร", "ศัตรู", "อาทิตย์", "จันทร์", "สุริยะ", "โทรศัพท์", "มรณะ", "ชิวิต", "โกรธ", "กิริยา", "สาธารณะ", "จริยา", "อนาคต", "ปัจจุบัน", "อดีต", "บุคคล",
-"คัมภีร์", "โฆษณา", "เจดีย์", "โจทย์", "ปัญญา", "ชนบท", "ญาติ", "ชาติ", "เดรัจฉาน", "ตัณหา", "ถาวร", "ทัณฑฆาต", "ทายาท", "เทวดา", "ไทย", "ธูป", "นิรันดร์", "บริจาค", "บริโภค", "บริวาร", "บริเวณ", "บริหาร", "บริสุทธิ์", "บัณฑิต", "ปกติ", "ปฏิบัติ", "ปฏิทิน", "ปฏิเสธ", "ปริมาณ", "ปัจจุบัน", "อนาคต", "ปัญหา", "ปัญญา", "ผลิต", "พัฒนา", "พิสูจน์", "พุทรา", "ภาพ", "มารดา", "เมฆ", "ระฆัง", "รูป", "โลหิต", "วานร", "วิญญาณ", "สมบัติ", "สัญญาณ", "อัจฉริยะ", "อารมณ์", "อุบัติเหตุ",
-];
-
-/* เลือกชุดคำตามด่าน */
-let currentLevel = 1;
 /* ===== เมตาข้อความต่อด่าน (หัวข้อ/ป้ายปุ่ม) ===== */
 const LEVEL_META = {
   1: {
-    left:  'คำไทยแท้',
-    right: 'ภาษาอังกฤษ',
-    title: 'ส่งคำไทยแท้/หรือคำที่มาจากภาษาต่างประเทศ ให้ตรงตามบ้าน'
+    left:  'ตัวเลือก1',
+    right: 'ตัวเลือก2',
+    title: 'ส่งคำราชาศัพท์ ให้ตรงกับความหมาย'
   },
   2: {
-    left:  'คำไทยแท้',
-    right: 'ภาษาจีน',
-    title: 'ส่งคำไทยแท้/หรือคำที่มาจากภาษาต่างประเทศ ให้ตรงตามบ้าน'
+    left:  'ตัวเลือก1',
+    right: 'ตัวเลือก2',
+    title: 'ส่งคำราชาศัพท์ ให้ตรงกับความหมาย'
   },
   3: {
-    left:  'คำไทยแท้',
-    right: 'ภาษาบาลี-สันสกฤต',
-    title: 'ส่งคำไทยแท้/หรือคำที่มาจากภาษาต่างประเทศ ให้ตรงตามบ้าน'
+    left:  'ตัวเลือก1',
+    right: 'ตัวเลือก2',
+    title: 'ส่งคำราชาศัพท์ ให้ตรงกับความหมาย'
   }
 };
 
-function getBankForLevel(lv){
-  if(lv===1) return { TRUE:BANK_L1_TRUE.slice(), FALSE:BANK_L1_FALSE.slice() };
-  if(lv===2) return { TRUE:BANK_L2_TRUE.slice(), FALSE:BANK_L2_FALSE.slice() };
-  if(lv===3) return { TRUE:BANK_L3_TRUE.slice(), FALSE:BANK_L3_FALSE.slice() };
-  return { TRUE:[], FALSE:[] };
-}
+/* ด่านปัจจุบัน */
+let currentLevel = 1;
 
-/* สุ่มรวมคำ + คำตอบที่ถูกต้อง */
-let pool = []; // [{word, isTrue}]
+/* สุ่มเรียงคำถามของด่านนั้น ๆ */
+let pool = []; // [{question, leftText, rightText, correct}, ...]
 function buildPool(lv){
-  const {TRUE, FALSE} = getBankForLevel(lv);
-  const arr=[];
-  TRUE.forEach(w=>arr.push({word:w, isTrue:true}));
-  FALSE.forEach(w=>arr.push({word:w, isTrue:false}));
-  // สุ่ม
-  for(let i=arr.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; [arr[i],arr[j]]=[arr[j],arr[i]] }
-  pool = arr;
+  const list = (QUESTIONS_LEVEL[lv] || []).slice();   // clone
+  for(let i = list.length - 1; i > 0; i--){
+    const j = (Math.random() * (i + 1)) | 0;
+    [list[i], list[j]] = [list[j], list[i]];
+  }
+  pool = list;
 }
 
-/* ---------- กลไกถาม-ตอบ ---------- */
-let idx=0;
+let idx = 0;
 
 function showQuestion(){
   // เริ่มข้อใหม่ → ปิดโหมดรอข้อถัดไป และอนุญาตให้ตอบ
@@ -1146,34 +1580,32 @@ function showQuestion(){
   showNextButton(false);
   questionCount++;
 
-  if(idx>=pool.length){ idx=0 } // วนใหม่ได้
-  const item = pool[idx++];
+  if (idx >= pool.length){ idx = 0; }
+  const item = pool[idx++];   // item = 1 ข้อ
 
-// ใส่ข้อความคำถาม + เฉลย
-qBox.textContent = item.word;
-qBox.dataset.answer = item.isTrue ? 'true' : 'false';
+  // ---------- ข้อความโจทย์ ----------
+  qBox.textContent = item.question || item.word || '';
 
-playClone(questionSound, VOL.question);
+  // เล่นเสียงขึ้นโจทย์
+  playClone(questionSound, VOL.question);
 
-// โชว์ปุ่มคำตอบ
-showAnswerButtons(true);
+  // โชว์ปุ่มคำตอบ
+  showAnswerButtons(true);
 
-qBox.classList.remove('out','in');
-qEmoji?.classList.remove('out','in');
+  // รีเซ็ตสถานะอนิเมชันกล่องคำถาม + อีโมจิ
+  qBox.classList.remove('out','in');
+  qEmoji?.classList.remove('out','in');
 
-// อัปเดตคอนเทนต์อีโมจิแบบสุ่มทุกข้อ
-if(qEmoji){
-  qEmoji.textContent = pickEmoji();
-}
+  if(qEmoji){
+    qEmoji.textContent = pickEmoji();
+  }
 
-// รอ 1 เฟรมให้ตำแหน่งนิ่ง จากนั้นใส่คลาสเข้า (in) ทั้งคู่พร้อมกัน
-requestAnimationFrame(()=>{
-  qBox.classList.add('in');
-  qEmoji?.classList.add('in');
-});
+  requestAnimationFrame(()=>{
+    qBox.classList.add('in');
+    qEmoji?.classList.add('in');
+  });
 
-
-  // 🎨 เปลี่ยนสีพื้นหลังกล่องคำถาม "เมื่อเปลี่ยนข้อ" เท่านั้น
+  // ---------- เปลี่ยนสีพื้นหลังกล่องคำถาม ----------
   const palettes = [
     ['#ff8a00','#e52e71'],
     ['#00dbde','#fc00ff'],
@@ -1186,54 +1618,104 @@ requestAnimationFrame(()=>{
   ];
   const pick = palettes[(Math.random()*palettes.length)|0];
   const grad = `linear-gradient(135deg, ${pick[0]}, ${pick[1]})`;
-  // เซ็ตเป็นตัวแปร CSS ให้ ::before ใช้ และทำให้เปลี่ยนแบบเนียน
   qBox.style.setProperty('--qbox-bg', grad);
 
-
-
-
-  // 🖼️ สุ่มรูปจาก house1–house8 (2 ฝั่งไม่ซ้ำกัน)
+  // ---------- เตรียมข้อความตัวเลือก + สุ่มว่าถูกไปอยู่ซ้ายหรือขวา ----------
   const leftBtn  = document.getElementById('btnTrueBlend');
   const rightBtn = document.getElementById('btnFalseBlend');
+  if (!leftBtn || !rightBtn) return;
 
-  if(leftBtn && rightBtn){
-    const allImgs = Array.from({length:8}, (_,i)=>`image/house${i+1}.png`);
-    const a = Math.floor(Math.random()*allImgs.length);
-    let b; do{ b = Math.floor(Math.random()*allImgs.length); }while(b===a);
+  // meta ใช้เป็นค่า fallback ของ label ปุ่ม
+  const meta = (typeof LEVEL_META !== 'undefined' && LEVEL_META[currentLevel])
+    ? LEVEL_META[currentLevel]
+    : null;
 
-    const leftImg  = allImgs[a];
-    const rightImg = allImgs[b];
+  // 1) หาว่า "ตัวเลือกที่ถูก" กับ "ตัวเลือกที่ผิด" คืออะไร
+  let correctText, wrongText;
 
-    // ใช้ข้อความตาม LEVEL_META ของด่าน (ถ้าไม่มี ให้ใช้ข้อความเดิมของปุ่ม)
-    const meta = (typeof LEVEL_META!=='undefined' && LEVEL_META[currentLevel]) ? LEVEL_META[currentLevel] : null;
-    const leftText  = meta?.left  || (leftBtn.dataset.label || leftBtn.textContent.trim());
-    const rightText = meta?.right || (rightBtn.dataset.label|| rightBtn.textContent.trim());
+  // กรณีแบบใหม่: ใช้โครง QUESTION_LEVEL { question, leftText, rightText, correct }
+  if (item.leftText || item.rightText || item.correct){
+    const baseLeft  = item.leftText  || meta?.left  || (leftBtn.dataset.label  || leftBtn.textContent.trim());
+    const baseRight = item.rightText || meta?.right || (rightBtn.dataset.label || rightBtn.textContent.trim());
 
-    // ✅ โครงสร้าง: ข้อความอยู่บนรูป — และรูป “อยู่ในปุ่ม” แน่นอน
-    leftBtn.innerHTML  = `
-      <div class="btn-content">
-        <div class="btn-text">${leftText}</div>
-        <div class="btn-img-wrap">
-          <img class="btn-img" src="${leftImg}" alt="">
-        </div>
-      </div>`;
-    rightBtn.innerHTML = `
-      <div class="btn-content">
-        <div class="btn-text">${rightText}</div>
-        <div class="btn-img-wrap">
-          <img class="btn-img" src="${rightImg}" alt="">
-        </div>
-      </div>`;
+    if (item.correct === 'right'){
+      correctText = baseRight;
+      wrongText   = baseLeft;
+    } else {
+      // default ถือว่า correct = left
+      correctText = baseLeft;
+      wrongText   = baseRight;
+    }
 
-    // เก็บ label ไว้กันข้อความหายเมื่อ innerHTML ถูกแทนซ้ำ
-    leftBtn.dataset.label  = leftText;
-    rightBtn.dataset.label = rightText;
+  } else if (typeof item.isTrue === 'boolean'){
+    // กรณีใช้ BANK_Lx_TRUE / FALSE เดิม
+    // สมมติว่า TRUE = บ้านฝั่งซ้าย, FALSE = บ้านฝั่งขวา ตาม meta
+    const leftLabel  = meta?.left  || (leftBtn.dataset.label  || leftBtn.textContent.trim());
+    const rightLabel = meta?.right || (rightBtn.dataset.label || rightBtn.textContent.trim());
+    if (item.isTrue){
+      correctText = leftLabel;
+      wrongText   = rightLabel;
+    } else {
+      correctText = rightLabel;
+      wrongText   = leftLabel;
+    }
 
-    // อัปเดต aria-label เพื่อการเข้าถึง
-    leftBtn.setAttribute('aria-label',  'เลือก ' + leftText);
-    rightBtn.setAttribute('aria-label', 'เลือก ' + rightText);
+  } else {
+    // กันพัง: ถ้าไม่มีอะไรเลย ให้ใช้ meta ตรง ๆ
+    correctText = meta?.left  || 'ตัวเลือกที่ถูก';
+    wrongText   = meta?.right || 'ตัวเลือกที่ผิด';
   }
+
+    // 2) สุ่มว่าข้อนี้จะให้ "ตัวเลือกที่ถูก" ไปอยู่ฝั่งไหนแบบสุ่มจริง ๆ (50/50)
+  const randomSide = Math.random() < 0.5 ? 'left' : 'right';
+
+  let leftText, rightText;
+
+  if (randomSide === 'left') {
+    leftText  = correctText;
+    rightText = wrongText;
+    qBox.dataset.correctSide = 'left';
+  } else {
+    leftText  = wrongText;
+    rightText = correctText;
+    qBox.dataset.correctSide = 'right';
+  }
+
+  // 3) สุ่มรูปภาพของบ้านซ้าย/ขวา
+
+
+  // 3) สุ่มรูปภาพของบ้านซ้าย/ขวา
+  const allImgs = Array.from({length:8}, (_,i)=>`image/house${i+1}.png`);
+  const a = Math.floor(Math.random()*allImgs.length);
+  let b;
+  do{ b = Math.floor(Math.random()*allImgs.length); }while(b===a);
+  const leftImg  = allImgs[a];
+  const rightImg = allImgs[b];
+
+  // 4) ใส่ HTML ปุ่ม
+  leftBtn.innerHTML  = `
+    <div class="btn-content">
+      <div class="btn-text">${leftText}</div>
+      <div class="btn-img-wrap">
+        <img class="btn-img" src="${leftImg}" alt="">
+      </div>
+    </div>`;
+
+  rightBtn.innerHTML = `
+    <div class="btn-content">
+      <div class="btn-text">${rightText}</div>
+      <div class="btn-img-wrap">
+        <img class="btn-img" src="${rightImg}" alt="">
+      </div>
+    </div>`;
+
+  leftBtn.dataset.label  = leftText;
+  rightBtn.dataset.label = rightText;
+
+  leftBtn.setAttribute('aria-label','เลือก '+leftText);
+  rightBtn.setAttribute('aria-label','เลือก '+rightText);
 }
+
 
 
 
@@ -1252,9 +1734,13 @@ function judge(isPickTrue){
   if(paused) return; 
   if(waitingNext) return;
 
-  const ans = qBox.dataset.answer === 'true';
-  const ok = (isPickTrue === ans);
+  // อ่านฝั่งที่ถูกจาก dataset (มาจาก showQuestion)
+  const correctSide = qBox.dataset.correctSide || 'left'; // 'left' หรือ 'right'
+  const pickSide    = isPickTrue ? 'left' : 'right';      // true = ซ้าย, false = ขวา
+  const ok          = (pickSide === correctSide);
+
   score += ok ? 1 : 0;
+
 
   // บันทึกไทม์ไลน์อีโมจิ: ถูก = 📦, ผิด = 😡
   emojiHistory.push(ok ? '📦' : '😡');
@@ -2034,5 +2520,6 @@ document.addEventListener('visibilitychange', ()=>{ if(document.hidden && stream
 
 </body>
 </html>
+
 
 
