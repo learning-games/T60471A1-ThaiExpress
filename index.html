@@ -301,6 +301,18 @@ body:not(.in-game) #clock { display:none !important; }
 
 /* ===== กล้อง/แคนวาส AR (คงเดิม) ===== */
 #cameraMirror{ position:fixed; inset:0; width:100vw; height:100vh; object-fit:cover; transform: scaleX(-1); z-index:1; display:none; background:#000 }
+#noPlayer{
+  position:fixed; left:50%; top:42%; transform:translate(-50%,-50%);
+  display:none; z-index:17600;
+  padding:18px 34px; border-radius:18px;
+  background:rgba(0,0,0,.62); border:2px solid rgba(255,255,255,.35);
+  color:#fff; font-size:clamp(26px,5vw,46px); font-weight:900;
+  text-align:center; white-space:nowrap; pointer-events:none;
+  text-shadow:0 2px 8px rgba(0,0,0,.6);
+  animation: npPulse 1.1s ease-in-out infinite;
+}
+#noPlayer.show{ display:block }
+@keyframes npPulse{ 0%,100%{ opacity:.55 } 50%{ opacity:1 } }
 #camCanvas{ position:fixed; inset:0; width:100vw; height:100vh; z-index:2; pointer-events:none; display:none }
 
 /* ปุ่ม Mute / Fullscreen (คงเดิม) */
@@ -642,6 +654,7 @@ body:not(.in-game) .zone .ansbtn{
 <canvas id="camCanvas"></canvas>
 
 <div id="game" aria-label="สนามเกม">
+  <div id="noPlayer" aria-live="assertive">ไม่พบผู้เล่น</div>
   <div id="questionBox" aria-live="polite"></div>
   <img id="qImg" alt="ภาพประกอบคำถาม" />
   <!-- อีโมจิที่ผูกกับกล่องคำถาม -->
@@ -823,6 +836,25 @@ body:not(.in-game) .zone .ansbtn{
 (()=>{
 /* ---------- DOM หลัก ---------- */
 const qBox   = document.getElementById('questionBox');
+const noPlayerEl = document.getElementById('noPlayer');
+
+// ผู้เล่นอยู่ในเฟรมไหม: ต้องเปิดกล้อง + ตรวจเจอหัวภายใน grace period
+function playerPresent(){
+  const H = window.__HEAD_TRACK__;
+  if(!H || !H.on) return false; // กล้องปิด = ไม่ใช้เงื่อนไขนี้ (เช็คแยกที่ผู้เรียก)
+  return H.live && (performance.now() - H.lastSeen) <= HEAD_GRACE_MS;
+}
+function cameraActive(){ return !!(window.__HEAD_TRACK__ && window.__HEAD_TRACK__.on); }
+function showNoPlayer(show){ if(noPlayerEl) noPlayerEl.classList.toggle('show', !!show); }
+
+// คิวคำถามที่รอผู้เล่นเข้าเฟรม
+let pendingQuestion = false;
+
+// เปิดให้สคริปต์กล้อง (คนละ scope) สั่งปล่อยคำถาม/ซ่อนคำเตือนได้เมื่อปิดกล้อง
+window.__RELEASE_ON_CAM_OFF__ = function(){
+  showNoPlayer(false);
+  if(pendingQuestion){ pendingQuestion=false; try{ showQuestion(); }catch(_){} }
+};
 const overlay= document.getElementById('overlay');
 const finalScoreEl = document.getElementById('finalScore');
 const restartBtn   = document.getElementById('restartBtn');
@@ -1562,6 +1594,20 @@ function buildPool(lv){
 let idx = 0;
 
 function showQuestion(){
+  // ✅ ถ้าเปิดกล้องอยู่แต่ยังไม่พบผู้เล่น → ยังไม่ปล่อยกล่องโจทย์
+  //    เก็บเป็นคิวไว้ แล้วโชว์ข้อความ "ไม่พบผู้เล่น" จนกว่าจะตรวจเจอหัว
+  if(cameraActive() && !playerPresent()){
+    pendingQuestion = true;
+    canAnswer = false;
+    waitingNext = false;
+    showAnswerButtons(false);
+    showNextButton(false);
+    showNoPlayer(true);
+    return;
+  }
+  pendingQuestion = false;
+  showNoPlayer(false);
+
   // เริ่มข้อใหม่ → ปิดโหมดรอข้อถัดไป และอนุญาตให้ตอบ
   waitingNext = false;
   canAnswer   = true;
@@ -1722,6 +1768,16 @@ function judge(isPickTrue){
   if(paused) return; 
   if(waitingNext) return;
 
+  // 🔒 กันเลือกซ้ำ: ถ้าตอบข้อนี้ไปแล้ว (canAnswer ถูกปิด) หรือกำลังเคลียร์อยู่ ให้ตัดทิ้งทันที
+  //    ต้องเช็คก่อน "ทุกอย่าง" — ก่อนบวกคะแนนและก่อนเล่นเสียง
+  if(!canAnswer || judge._busy) return;
+  canAnswer = false;   // ปิดรับคำตอบทันทีที่เข้ามาครั้งแรก
+  judge._busy = true;
+
+  // เคลียร์สถานะ armed ของปุ่มทั้งสองข้าง กันค้างแล้วถูกนับซ้ำรอบถัดไป
+  document.getElementById('btnTrueBlend')?.classList.remove('armed');
+  document.getElementById('btnFalseBlend')?.classList.remove('armed');
+
   // อ่านฝั่งที่ถูกจาก dataset (มาจาก showQuestion)
   const correctSide = qBox.dataset.correctSide || 'left'; // 'left' หรือ 'right'
   const pickSide    = isPickTrue ? 'left' : 'right';      // true = ซ้าย, false = ขวา
@@ -1741,17 +1797,10 @@ function judge(isPickTrue){
   flyScoreAtCenter(ok, anchorEl, 0, -40);
 
 answeredCount++;  
-  canAnswer = false;
 
 // ✅ เล่นเสียงแทน selectSound ตามผลลัพธ์
 if(ok) playClone(correctSound, VOL.correct);
 else   playClone(wrongSound, VOL.wrong);
-
-
-
-// กันลั่นซ้ำระหว่างกำลังหด/เคลียร์
-if (judge._busy) return;
-judge._busy = true;
 
 const leftBtn  = document.getElementById('btnTrueBlend');
 const rightBtn = document.getElementById('btnFalseBlend');
@@ -2006,9 +2055,13 @@ if(rightBtn){
 /* ===== ติดตาม “ศีรษะ” เพื่อวางคำถาม + เลือกด้วยศีรษะ ===== */
 window.__HEAD_TRACK__ = {
   on:false,            // เปิดกล้องอยู่ไหม (อ้างจากสคริปต์ Pose ด้านล่าง)
+  live:false,          // ตรวจเจอหัวจริง ๆ ภายใน grace period ล่าสุดไหม
+  lastSeen:0,          // performance.now() ครั้งล่าสุดที่ตรวจเจอหัว
   x: innerWidth/2,     // ตำแหน่งศีรษะบนจอ (พิกัดจอ)
   y: innerHeight*0.25, // ยืนสูงหน่อย
 };
+// ถ้าไม่เจอหัวเกินค่านี้ (ms) ถือว่า "ไม่พบผู้เล่น" — กันเฟรมหลุดเดี่ยว ๆ ไม่ให้กระพริบ
+const HEAD_GRACE_MS = 600;
 const HEAD_RADIUS = 28;        // รัศมีที่ใช้ชนปุ่ม
 const HIT_LOCK_MS = 450;       // กันเด้งซ้ำ
 let lastHitAt = 0;
@@ -2187,6 +2240,8 @@ function headCollideCheck(){
   }
 
   if(armedTrue || armedFalse){
+    // ถ้าหัวคร่อมทั้งสองปุ่มพร้อมกัน = กำกวม ไม่นับ (กันการตัดสินมั่วตอนขยับเร็ว)
+    if(armedTrue && armedFalse) return;
     lastHitAt = now;
     judge(armedTrue); // true=ซ้าย(ควบกล้ำแท้), false=ขวา(ควบกล้ำไม่แท้)
   }
@@ -2197,6 +2252,28 @@ function headCollideCheck(){
 function rafLoop(){
   if(!ended && !paused){
     placeQuestionFollowHead();
+
+    // จัดการสถานะ "พบ/ไม่พบผู้เล่น" เฉพาะตอนเปิดกล้อง
+    if(cameraActive()){
+      const present = playerPresent();
+      if(pendingQuestion){
+        // มีคำถามค้างรออยู่ → พบผู้เล่นเมื่อไรค่อยปล่อย
+        if(present){ showQuestion(); }
+        else { showNoPlayer(true); }
+      } else if(running){
+        // อยู่ระหว่างเล่นข้อปกติ → หลุดเฟรมเกิน grace ให้เตือนและหยุดรับคำตอบชั่วคราว
+        if(!present){
+          showNoPlayer(true);
+          canAnswer = false;
+        } else {
+          showNoPlayer(false);
+          if(!waitingNext) canAnswer = true; // กลับมาตอบได้ ถ้าไม่ได้รอข้อถัดไป
+        }
+      }
+    } else {
+      showNoPlayer(false); // กล้องปิด ไม่ต้องเตือน
+    }
+
     headCollideCheck();
   }
   requestAnimationFrame(rafLoop);
@@ -2225,7 +2302,7 @@ rafLoop();
 
 <!-- ===== Pose (คงเดิม แต่เพิ่ม “หัว” เพื่อติดตาม/เลือก) ===== -->
 <script type="module">
-import {PoseLandmarker, FilesetResolver} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3";
+import {PoseLandmarker, FilesetResolver} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35";
 const camBtn = document.getElementById('camBtn');
 const video  = document.getElementById('cameraMirror');
 const cvs    = document.getElementById('camCanvas');
@@ -2246,7 +2323,7 @@ function mapToScreen(nx,ny){ const {sX,sY,sW,sH,vw,vh,sw,sh} = coverCropRect(); 
 
 async function ensureLandmarker(){
   if(landmarker) return landmarker;
-  const fileset = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm");
+  const fileset = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm");
   landmarker = await PoseLandmarker.createFromOptions(fileset, {
     baseOptions:{ modelAssetPath:"https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task" },
     runningMode:'VIDEO',
@@ -2265,7 +2342,7 @@ function drawPoseAndHead(res){
   const sw=innerWidth, sh=innerHeight;
   ctx.clearRect(0,0,sw,sh);
   if(!res?.landmarks?.length){
-    window.__HEAD_TRACK__.on = false;
+    window.__HEAD_TRACK__.live = false;
     return;
   }
 
@@ -2282,7 +2359,7 @@ if (lEye && rEye) {
 } else if (lm[0]) {
   ref = lm[0]; // fallback เป็นจมูก
 } else {
-  window.__HEAD_TRACK__.on = false;
+  window.__HEAD_TRACK__.live = false;
   return;
 }
 
@@ -2291,6 +2368,8 @@ const base = mapToScreen(ref.x, ref.y);
 const head = { x: base.x, y: base.y - EYE_OFFSET_PX };
 
 window.__HEAD_TRACK__.on = true;
+window.__HEAD_TRACK__.live = true;
+window.__HEAD_TRACK__.lastSeen = performance.now();
 window.__HEAD_TRACK__.x = head.x;
 window.__HEAD_TRACK__.y = head.y;
 
@@ -2338,6 +2417,9 @@ function stopCamera(){
   ctx.clearRect(0,0,innerWidth,innerHeight);
   camBtn.textContent='📷 กล้อง: ปิด'; CAM_ON=false; fitCanvas();
   window.__HEAD_TRACK__.on=false;
+  window.__HEAD_TRACK__.live=false;
+  // กล้องปิด: ไม่ต้องเตือน และถ้ามีคำถามค้างรอผู้เล่น ให้ปล่อยเลย (โหมดไม่ใช้กล้อง)
+  if(typeof window.__RELEASE_ON_CAM_OFF__==='function') window.__RELEASE_ON_CAM_OFF__();
 }
 
 camBtn.addEventListener('click', async ()=>{
@@ -2508,7 +2590,3 @@ document.addEventListener('visibilitychange', ()=>{ if(document.hidden && stream
 
 </body>
 </html>
-
-
-
-
