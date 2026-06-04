@@ -233,6 +233,8 @@ body:not(.in-game) #clock { display:none !important; }
 #qEmoji.in{
   opacity: 1;
   transform: translate(-50%, -20%) scale(1);
+  transition: none;
+  animation: qboxSpawnPop 520ms cubic-bezier(.34,1.56,.64,1) forwards;
 }
 #qEmoji.out{
   opacity: 0;
@@ -257,10 +259,17 @@ body:not(.in-game) #clock { display:none !important; }
   will-change: translate, transform, opacity;
 }
 
-/* ตอนแสดงคำถาม */
+/* ตอนแสดงคำถาม — เกิดที่ตำแหน่งหัวด้วย scale 0→1 พร้อมเด้งนิดๆ */
 #questionBox.in{
   opacity: 1;
   transform: translate(-50%, -20%) scale(1);
+  transition: none;
+  animation: qboxSpawnPop 520ms cubic-bezier(.34,1.56,.64,1) forwards;
+}
+@keyframes qboxSpawnPop{
+  0%   { opacity: 0; transform: translate(-50%, -20%) scale(0.15); }
+  60%  { opacity: 1; transform: translate(-50%, -20%) scale(1.08); }
+  100% { opacity: 1; transform: translate(-50%, -20%) scale(1); }
 }
 
 /* ตอนตอบแล้วให้ “เด้งขยายก่อน แล้วค่อยหดหาย” */
@@ -1634,6 +1643,9 @@ function showQuestion(){
     qEmoji.textContent = pickEmoji();
   }
 
+  // 🆕 ให้ controller สั่งเกิดกล่องที่ตำแหน่งหัว (ตั้ง --qx/--qy ก่อน CSS .in)
+  qboxController.spawn();
+
   requestAnimationFrame(()=>{
     qBox.classList.add('in');
     qEmoji?.classList.add('in');
@@ -1823,6 +1835,7 @@ qBox.style.animation = 'none';
 void qBox.offsetWidth;
 qBox.style.animation = '';
 qBox.classList.add('out');
+qboxController.shrink();  // 🆕 หยุดตามหัวระหว่างกล่องกำลังหด
 
 
 // ❷ ปุ่มคำตอบ: ค้างไว้ก่อน (ถ้าอยากให้หดพร้อมกล่อง ให้ตั้ง CLEAR_DELAY_MS = 0)
@@ -1900,6 +1913,7 @@ if(qEmoji){
   questionCount = 0;
   showAnswerButtons(false);
   showNextButton(false);
+  qboxController.reset();  // 🆕 กลับไป IDLE และเคลียร์ tuning
 }
 
 function startGame(){
@@ -2062,190 +2076,223 @@ window.__HEAD_TRACK__ = {
 };
 // ถ้าไม่เจอหัวเกินค่านี้ (ms) ถือว่า "ไม่พบผู้เล่น" — กันเฟรมหลุดเดี่ยว ๆ ไม่ให้กระพริบ
 const HEAD_GRACE_MS = 600;
-const HEAD_RADIUS = 28;        // รัศมีที่ใช้ชนปุ่ม
-const HIT_LOCK_MS = 450;       // กันเด้งซ้ำ
-let lastHitAt = 0;
+const HEAD_RADIUS = 28;        // (legacy, ไม่ได้ใช้แล้วหลังเปลี่ยนระบบเป็น rect-vs-rect)
+const HIT_LOCK_MS = 450;       // (legacy)
+let lastHitAt = 0;             // (legacy)
 
 // ระยะชดเชยให้ "เหนือดวงตา" (หน่วย: พิกเซลจอ) — ปรับได้
 const EYE_OFFSET_PX = 110;      // เพิ่มค่านี้เพื่อยกขึ้นอีก
 
 
-// --- Smooth follow head position ---
-// ชั้นกรอง: rolling median + outlier reject + rate limit + One Euro + deadzone/hysteresis
+/* ============================================================
+ * 🆕 qboxController — ระบบใหม่
+ * แทนที่ระบบเก่า (rolling median + OneEuro + spring + circle-vs-rect)
+ *
+ * สถานะ: IDLE → SPAWN (auto→FOLLOW) → FOLLOW → SHRINK → IDLE
+ *
+ * ออกแบบ:
+ * - กล่องเกิดที่ตำแหน่งหัว เล่น scale 0→1 แบบ bounce นิดๆ
+ * - ระหว่าง FOLLOW ใช้ deadzone + linear catchup (ไม่ใช้ฟิลเตอร์ซับซ้อน)
+ * - ตรวจชนด้วย bounding rect ของ qBox vs ปุ่ม (ไม่ใช่จุดหัวอีก)
+ * - Auto-tune ตาม fps ที่วัดได้: เครื่องช้า → deadzone กว้างขึ้น
+ * ============================================================ */
+const qboxController = (() => {
+  // ค่าคงที่ปรับได้
+  const CATCHUP_NORMAL = 0.28;   // 28% ต่อเฟรม @ 60fps → ตามทันลื่นๆ
+  const CATCHUP_SLOW   = 0.18;   // เครื่องช้า → ลดลง กันกระตุก
+  const DEADZONE_NORMAL = 12;    // px — ห่างน้อยกว่านี้ ไม่ขยับ
+  const DEADZONE_SLOW   = 22;    // เครื่องช้า → กว้างขึ้น
+  const HIT_COOLDOWN_MS = 450;   // กันชนซ้ำ
 
-// คิวประวัติสำหรับ median
-const HIST = [];
-const HIST_MAX = 7; // 5–9 กำลังดี
+  // สถานะภายใน
+  let state = 'IDLE';            // IDLE | SPAWN | FOLLOW | SHRINK
+  let curX = innerWidth/2, curY = innerHeight*0.4;  // ตำแหน่งกล่องปัจจุบัน
+  let lastHitTime = 0;
+  let lastFrameTime = performance.now();
 
-// One Euro filter (เบา–ลื่นแบบ TikTok)
-class OneEuro {
-  constructor({minCutoff=1.0, beta=0.02, dCutoff=1.0}={}){
-    this.minCutoff=minCutoff; this.beta=beta; this.dCutoff=dCutoff;
-    this.xPrev=null; this.dxPrev=0; this.tPrev=null;
+  // ค่าที่ auto-tune
+  let catchup = CATCHUP_NORMAL;
+  let deadzone = DEADZONE_NORMAL;
+
+  // FPS sampler — วัด 2 วินาทีแรกหลังเปิดกล้อง
+  let fpsFrames = 0, fpsStart = 0, fpsTuned = false;
+  function tuneByFps(){
+    if(fpsTuned) return;
+    if(fpsStart === 0){ fpsStart = performance.now(); fpsFrames = 0; }
+    fpsFrames++;
+    const elapsed = performance.now() - fpsStart;
+    if(elapsed >= 2000){
+      const fps = fpsFrames * 1000 / elapsed;
+      if(fps < 20){
+        catchup = CATCHUP_SLOW;
+        deadzone = DEADZONE_SLOW;
+      }
+      fpsTuned = true;
+    }
   }
-  _alpha(cutoff, dt){ const tau = 1/(2*Math.PI*cutoff); return 1/(1+tau/dt); }
-  filter(x, t){
-    if(this.tPrev==null){ this.tPrev=t; this.xPrev=x; return x; }
-    const dt = Math.max(1e-3, (t - this.tPrev)/1000); // s
-    const dx = (x - this.xPrev)/dt;
-    const aD = this._alpha(this.dCutoff, dt);
-    this.dxPrev = aD*dx + (1-aD)*this.dxPrev;
-    const cutoff = this.minCutoff + this.beta * Math.abs(this.dxPrev);
-    const aX = this._alpha(cutoff, dt);
-    const xf = aX*x + (1-aX)*this.xPrev;
-    this.xPrev = xf; this.tPrev = t;
-    return xf;
+
+  // อ่านตำแหน่งหัวจาก __HEAD_TRACK__ (พิกัดที่ map+offset มาแล้ว)
+  function getHeadXY(){
+    const H = window.__HEAD_TRACK__;
+    if(!H || !H.on || !H.live) return null;
+    return { x: H.x, y: H.y };
   }
-}
-const euroX = new OneEuro({ minCutoff: 1.2, beta: 0.03, dCutoff: 1.0 });
-const euroY = new OneEuro({ minCutoff: 1.4, beta: 0.05, dCutoff: 1.2 });
 
-// สถานะตำแหน่งสุดท้ายบนจอ (หลังกรอง)
-let smoothX = innerWidth / 2;
-let smoothY = innerHeight * 0.25;
-let lastTime = performance.now();
+  // เริ่มข้อใหม่: เกิดกล่องที่ตำแหน่งหัว
+  function spawn(){
+    const h = getHeadXY();
+    if(!h){
+      // ไม่ควรเกิด เพราะ showQuestion gate ผ่าน playerPresent แล้ว
+      // แต่ fallback ไว้ที่กลางจอเผื่อกรณีกล้องปิด
+      curX = innerWidth/2;
+      curY = innerHeight*0.4;
+    } else {
+      curX = h.x;
+      curY = h.y;
+    }
+    applyCSS();
+    state = 'SPAWN';
+    // ระบบ CSS เดิม (qBox.classList.add('in')) เล่นเอฟเฟกต์ขยายเอง
+    // เปลี่ยนเป็น FOLLOW ทันทีเพื่อให้ตามหัวระหว่าง animation ขยายตัว
+    state = 'FOLLOW';
+    lastFrameTime = performance.now();
+  }
 
-// เสริม: อนุญาตขยับสูงสุดต่อวินาที (rate limit)
-const MAX_SPEED_PX_S = 900; // ยิ่งต่ำยิ่งนิ่ง
+  // ออกจากข้อ: ปล่อยให้ CSS .out ทำงาน แล้วเข้า IDLE
+  function shrink(){
+    state = 'SHRINK';
+    // หลัง animation หดเสร็จ (qBox.classList.remove ใน judge) ค่อย idle
+    setTimeout(() => { if(state === 'SHRINK') state = 'IDLE'; }, 1000);
+  }
 
-// เสริม: deadzone/hysteresis ป้องกันสั่นเมื่อหยุดนิ่ง
-const DEADZONE_PX = 14;     // เขตไม่ขยับ
-const STICKY_EXTRA = 8;     // ต้องพ้นระยะนี้ถึงจะเริ่มไหลอีก
+  // เรียกทุกเฟรมจาก rafLoop — อัปเดตตำแหน่งตามหัวด้วย deadzone+linear
+  function tick(){
+    if(state !== 'FOLLOW') return;
+    tuneByFps();
 
-function rollingMedian(arr){
-  const a=[...arr].sort((p,q)=>p-q);
-  const mid=a.length>>1;
-  return a.length%2 ? a[mid] : 0.5*(a[mid-1]+a[mid]);
-}
+    const h = getHeadXY();
+    if(!h) return;  // ไม่เจอหัวเฟรมนี้ → ไม่ขยับ (ป้องกันเด้ง)
 
-function placeQuestionFollowHead(){
-  const H = window.__HEAD_TRACK__;
+    const dx = h.x - curX;
+    const dy = h.y - curY;
+    const dist = Math.hypot(dx, dy);
 
-  if(!H.on){
-    // กล้องปิด → วางนิ่ง
-    smoothX = innerWidth / 2;
-    smoothY = innerHeight * 0.25;
-    // ใช้ CSS variable คุมตำแหน่ง (ทั้งกล่องและอีโมจิจะเห็นค่าเดียวกัน)
+    // Deadzone: ห่างน้อยกว่า threshold → ไม่ขยับเลย (กันสั่น)
+    if(dist < deadzone) return;
+
+    // Linear catchup: ขยับเข้าหาเป้าหมายตามสัดส่วน catchup
+    // ปรับ catchup ตาม dt เพื่อให้พฤติกรรมคงที่ทุก fps
+    const now = performance.now();
+    const dt = Math.min(0.05, (now - lastFrameTime) / 1000);
+    lastFrameTime = now;
+    const k = 1 - Math.pow(1 - catchup, dt * 60); // normalize to 60fps
+
+    curX += dx * k;
+    curY += dy * k;
+    applyCSS();
+  }
+
+  function applyCSS(){
+    const root = document.documentElement;
+    root.style.setProperty('--qx', Math.round(curX) + 'px');
+    root.style.setProperty('--qy', Math.round(curY) + 'px');
+  }
+
+  // 🆕 ตรวจชน: เช็คว่ากล่องคำถามซ้อนกับปุ่มซ้าย/ขวาฝั่งไหน
+  function collideCheck(){
+    const now = performance.now();
+    if(now - lastHitTime < HIT_COOLDOWN_MS) return;
+
+    // 🔶 โหมดรอข้อถัดไป → กล่องคำถามหายแล้ว ใช้ "ตำแหน่งหัว" ชนปุ่มแทน
+    if (waitingNext && nextQuestionBtn && nextQuestionBtn.style.display !== 'none') {
+      const h = getHeadXY();
+      if(!h) return;
+      const rectN = nextQuestionBtn.getBoundingClientRect();
+      // ขยายขอบเขตการชนนิดหน่อยให้ชนง่าย (รัศมีหัว ~28px)
+      const HEAD_PAD = 28;
+      if(h.x >= rectN.left - HEAD_PAD && h.x <= rectN.right  + HEAD_PAD &&
+         h.y >= rectN.top  - HEAD_PAD && h.y <= rectN.bottom + HEAD_PAD){
+        lastHitTime = now;
+        nextQuestionBtn.click();
+      }
+      return;
+    }
+
+    // 🔷 โหมดตอบคำถามปกติ → ต้องมีกล่องอยู่ (FOLLOW เท่านั้น)
+    if(state !== 'FOLLOW') return;
+    if (!canAnswer) return;
+
+    // 🆕 hit-rect ของกล่อง: เล็ก ๆ ตรงตำแหน่งอีโมจิ (เหนือ qBox)
+    // จุดอ้างอิงคือ (--qx, --qy + --emo-y) โดย --emo-y ปกติ -150px
+    function getQBoxHitRect(){
+      const root = document.documentElement;
+      const cs = getComputedStyle(root);
+      const emoYStr = cs.getPropertyValue('--emo-y').trim() || '-150px';
+      const emoY = parseFloat(emoYStr) || -150;
+      const cx = curX;
+      const cy = curY + emoY;   // เลื่อนขึ้นไปอยู่ตรงตำแหน่งอีโมจิ
+      const HALF_W = 40;        // กล่องชน 80×80px เล็กกระชับ
+      const HALF_H = 40;
+      return {
+        left:   cx - HALF_W,
+        right:  cx + HALF_W,
+        top:    cy - HALF_H,
+        bottom: cy + HALF_H,
+      };
+    }
+
+    const rectQ = getQBoxHitRect();
+    const rectTrue  = document.getElementById('btnTrueBlend').getBoundingClientRect();
+    const rectFalse = document.getElementById('btnFalseBlend').getBoundingClientRect();
+
+    const interTrue  = intersectArea(rectQ, rectTrue);
+    const interFalse = intersectArea(rectQ, rectFalse);
+
+    // สัมผัสแม้นิดเดียวก็ armed
+    const armedT = interTrue  > 0;
+    const armedF = interFalse > 0;
+
+    document.getElementById('btnTrueBlend').classList.toggle('armed', armedT);
+    document.getElementById('btnFalseBlend').classList.toggle('armed', armedF);
+
+    if(armedT && armedF){
+      lastHitTime = now;
+      judge(interTrue > interFalse);
+    } else if(armedT){
+      lastHitTime = now;
+      judge(true);
+    } else if(armedF){
+      lastHitTime = now;
+      judge(false);
+    }
+  }
+
+  // คืนพื้นที่ซ้อนของสอง rect (px²)
+  function intersectArea(a, b){
+    const ix = Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left));
+    const iy = Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+    return ix * iy;
+  }
+
+  function reset(){
+    state = 'IDLE';
+    curX = innerWidth/2;
+    curY = innerHeight*0.4;
+    fpsTuned = false; fpsStart = 0; fpsFrames = 0;
+    catchup = CATCHUP_NORMAL;
+    deadzone = DEADZONE_NORMAL;
     const root = document.documentElement;
     root.style.setProperty('--qx', '50vw');
     root.style.setProperty('--qy', '50vh');
-    return;
-}
-
-
-
-  // 1) เติมประวัติและคำนวณ median เบื้องต้น
-  HIST.push({x:H.x, y:H.y});
-  if(HIST.length > HIST_MAX) HIST.shift();
-
-  const medX = rollingMedian(HIST.map(p=>p.x));
-  const medY = rollingMedian(HIST.map(p=>p.y));
-
-  // 2) Outlier reject: ถ้าค่าใหม่กระโดดไกลจาก median ให้ทิ้ง (กัน “เฟรมหลุด”)
-  const distMed = Math.hypot(H.x - medX, H.y - medY);
-
-  const OUTLIER_PX = 120;
-  const baseX = (distMed > OUTLIER_PX) ? medX : H.x;
-  const baseY = (distMed > OUTLIER_PX) ? medY : H.y;
-
-  const now = performance.now();
-  const dt  = Math.max(1e-3, (now - lastTime)/1000); // s
-
-  // === เป้าหมายหลังกรองแบบ OneEuro แบบเบา ๆ ===
-const fx = euroX.filter(baseX, now);
-const fy = euroY.filter(baseY, now);
-
-// === สปริงคริติคัลแดมป์ (นิ่ง-ลื่น ไม่มีดีด) ===
-// พารามิเตอร์สำหรับ 60fps: omega ~ 10–14 เนียน, zeta ~ 1 ใกล้เคียง critical
-const OMEGA = 12.0;     // ความไวสปริง (ยิ่งสูงยิ่งไว)
-const ZETA  = 1.0;      // ดับแรงสั่น (1 = critical damped)
-
-if(!placeQuestionFollowHead._vel){
-  placeQuestionFollowHead._vel = { x:0, y:0 };
-}
-const v = placeQuestionFollowHead._vel;
-
-// แกน X
-const ax = - (OMEGA*OMEGA)*(smoothX - fx) - (2*ZETA*OMEGA)*v.x;
-v.x += ax * dt;
-smoothX += v.x * dt;
-
-// แกน Y
-const ay = - (OMEGA*OMEGA)*(smoothY - fy) - (2*ZETA*OMEGA)*v.y;
-v.y += ay * dt;
-smoothY += v.y * dt;
-
-// จำกัดความเร็วสูงสุดกันกระชากเฟรมหลุด
-const MAX_V = 2000; // px/s
-v.x = Math.max(-MAX_V, Math.min(MAX_V, v.x));
-v.y = Math.max(-MAX_V, Math.min(MAX_V, v.y));
-
-lastTime = now;
-
-
-  // อัปเดตตำแหน่งผ่าน CSS variable (ใช้ translate individual property)
-  const tx = Math.round(smoothX);
-  const ty = Math.round(Math.max(20, smoothY - 80));
-  const root = document.documentElement;
-  root.style.setProperty('--qx', tx + 'px');
-  root.style.setProperty('--qy', ty + 'px');
-}
-
-
-/* ตรวจชนปุ่มด้วย “ศีรษะ” */
-function headCollideCheck(){
-  const now = performance.now();
-  if(now - lastHitAt < HIT_LOCK_MS) return;
-  if(!window.__HEAD_TRACK__.on) return; // ต้องเปิดกล้อง
-
-  const hx = window.__HEAD_TRACK__.x;
-  const hy = window.__HEAD_TRACK__.y;
-
-  const circleIntersectsRect = (cx,cy,r, rc) => {
-    const nx = Math.max(rc.left, Math.min(cx, rc.right));
-    const ny = Math.max(rc.top,  Math.min(cy, rc.bottom));
-    const dx=cx-nx, dy=cy-ny; 
-    return (dx*dx+dy*dy) <= r*r;
-  };
-
-  // 🔶 กรณี "กำลังรอให้กดปุ่มข้อถัดไป"
-  if (waitingNext && nextQuestionBtn && nextQuestionBtn.style.display !== 'none') {
-    const rectNext = nextQuestionBtn.getBoundingClientRect();
-    if (circleIntersectsRect(hx, hy, HEAD_RADIUS, rectNext)) {
-      lastHitAt = now;
-      nextQuestionBtn.click();   // ให้ทำงานเหมือนกดปุ่มด้วยเมาส์
-    }
-    return; // ไม่ต้องเช็คปุ่มอื่นแล้ว
   }
 
-  // 🔷 กรณีอยู่ในโหมดตอบคำถามปกติ → ชนปุ่มซ้าย/ขวา
-  if (!canAnswer) return;   // ยังไม่ขึ้นข้อใหม่ หรือกำลังแอนิเมชันอยู่
+  return { spawn, shrink, tick, collideCheck, reset,
+           get state(){ return state; } };
+})();
 
-  const rectTrue  = document.getElementById('btnTrueBlend').getBoundingClientRect();
-  const rectFalse = document.getElementById('btnFalseBlend').getBoundingClientRect();
-
-  let armedTrue=false, armedFalse=false;
-
-  if(circleIntersectsRect(hx,hy,HEAD_RADIUS,rectTrue)){
-    armedTrue=true;
-    document.getElementById('btnTrueBlend').classList.add('armed');
-  }else{
-    document.getElementById('btnTrueBlend').classList.remove('armed');
-  }
-  if(circleIntersectsRect(hx,hy,HEAD_RADIUS,rectFalse)){
-    armedFalse=true;
-    document.getElementById('btnFalseBlend').classList.add('armed');
-  }else{
-    document.getElementById('btnFalseBlend').classList.remove('armed');
-  }
-
-  if(armedTrue || armedFalse){
-    // ถ้าหัวคร่อมทั้งสองปุ่มพร้อมกัน = กำกวม ไม่นับ (กันการตัดสินมั่วตอนขยับเร็ว)
-    if(armedTrue && armedFalse) return;
-    lastHitAt = now;
-    judge(armedTrue); // true=ซ้าย(ควบกล้ำแท้), false=ขวา(ควบกล้ำไม่แท้)
-  }
-}
+// 🔁 Shim ฟังก์ชันเดิมเพื่อไม่ให้ส่วนอื่นพัง (startGame เรียก placeQuestionFollowHead)
+function placeQuestionFollowHead(){ qboxController.tick(); }
+function headCollideCheck(){ qboxController.collideCheck(); }
 
 
 /* อัปเดตตามเฟรม */
@@ -2257,18 +2304,17 @@ function rafLoop(){
     if(cameraActive()){
       const present = playerPresent();
       if(pendingQuestion){
-        // มีคำถามค้างรออยู่ → พบผู้เล่นเมื่อไรค่อยปล่อย
-        if(present){ showQuestion(); }
-        else { showNoPlayer(true); }
-      } else if(running){
-        // อยู่ระหว่างเล่นข้อปกติ → หลุดเฟรมเกิน grace ให้เตือนและหยุดรับคำตอบชั่วคราว
-        if(!present){
-          showNoPlayer(true);
-          canAnswer = false;
+        // มีคำถามค้างรออยู่ → ปล่อย "ครั้งเดียว" เมื่อพบผู้เล่น
+        // (showQuestion จะตั้ง pendingQuestion=false เอง จึงไม่ถูกเรียกซ้ำทุกเฟรม)
+        if(present){
+          showQuestion();
         } else {
-          showNoPlayer(false);
-          if(!waitingNext) canAnswer = true; // กลับมาตอบได้ ถ้าไม่ได้รอข้อถัดไป
+          showNoPlayer(true);
         }
+      } else if(running){
+        // อยู่ระหว่างเล่นข้อปกติ → แค่ "เตือน" เมื่อหลุดเฟรม
+        // ⚠️ ไม่ยุ่งกับ canAnswer ที่นี่ เพื่อกันค่าสลับไปมาทุกเฟรม (ต้นเหตุกล่องเด้ง)
+        showNoPlayer(!present);
       }
     } else {
       showNoPlayer(false); // กล้องปิด ไม่ต้องเตือน
